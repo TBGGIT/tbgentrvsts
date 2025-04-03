@@ -64,6 +64,22 @@ import psycopg2.extras
 from cryptography.fernet import Fernet
 from openai import OpenAI
 
+ENCRYPTION_KEY = b'yMybaWCe4meeb3v4LWNI4Sxz7oS54Gn0Fo9yJovqVN0='
+
+def decrypt_api_key(encrypted_data: bytes) -> str:
+    f = Fernet(ENCRYPTION_KEY)
+    decrypted_bytes = f.decrypt(encrypted_data)
+    return decrypted_bytes.decode("utf-8")
+
+def load_api_key_from_file(file_path: str) -> str:
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"No se encontró el archivo: {file_path}")
+    with open(file_path, "rb") as f:
+        encrypted_data = f.read()
+    return decrypt_api_key(encrypted_data)
+
+
+
 # Cargar la clave descifrada
 try:
     HARDCODED_API_KEY = load_api_key_from_file("api.txt")
@@ -116,26 +132,8 @@ def generar_clave_vacante(id_numerico):
     return str(id_numerico) + random_str
 
 # Clave usada para desencriptar
-ENCRYPTION_KEY = b'yMybaWCe4meeb3v4LWNI4Sxz7oS54Gn0Fo9yJovqVN0='
 
-def decrypt_api_key(encrypted_data: bytes) -> str:
-    f = Fernet(ENCRYPTION_KEY)
-    decrypted_bytes = f.decrypt(encrypted_data)
-    return decrypted_bytes.decode("utf-8")
 
-def load_api_key_from_file(file_path: str) -> str:
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"No se encontró el archivo: {file_path}")
-    with open(file_path, "rb") as f:
-        encrypted_data = f.read()
-    return decrypt_api_key(encrypted_data)
-
-# Cargar la clave descifrada
-try:
-    HARDCODED_API_KEY = load_api_key_from_file("api.txt")
-except Exception as e:
-    HARDCODED_API_KEY = ""
-    print("[ERROR]", e)
 
 # Inicializar cliente de OpenAI
 client = OpenAI(api_key=HARDCODED_API_KEY)
@@ -1081,45 +1079,7 @@ def ver_entrevista_candidato(vacante_id, candidato_id):
         vacante=vacante
     )
 
-@app.route('/vacantes/<int:vacante_id>/candidatos/<int:candidato_id>')
-def ver_entrevista_candidato(vacante_id, candidato_id):
-    if 'usuario' not in session:
-        return redirect('/')
-    conn = get_connection()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    cur.execute("SELECT * FROM candidatos WHERE id = %s", (candidato_id,))
-    cand_row = cur.fetchone()
-    if not cand_row:
-        cur.close()
-        conn.close()
-        return "El candidato no existe."
-    candidato = {
-        'id': cand_row['id'],
-        'nombre_completo': cand_row['nombre_completo'],
-        'correo': cand_row['correo'],
-        'celular': cand_row['celular'],
-        'ruta_video': cand_row['ruta_video']
-    }
-    cur.execute("SELECT * FROM vacantes WHERE id = %s", (vacante_id,))
-    vac_row = cur.fetchone()
-    if not vac_row:
-        cur.close()
-        conn.close()
-        return "La vacante no existe."
-    vacante = {
-        'id': vac_row['id'],
-        'clave': vac_row['clave'],
-        'empresa': vac_row['empresa'],
-        'sucursal': vac_row['sucursal'],
-        'puesto': vac_row['puesto'],
-        'fecha_publicacion': vac_row['fecha_publicacion'],
-        'pregunta1': vac_row['pregunta1'],
-        'pregunta2': vac_row['pregunta2'],
-        'pregunta3': vac_row['pregunta3']
-    }
-    cur.close()
-    conn.close()
-    return render_template_string(ENTREVISTA_CANDIDATO_TEMPLATE, candidato=candidato, vacante_id=vacante_id, vacante=vacante)
+
 
 @app.route('/check_clave', methods=['POST'])
 def check_clave():
