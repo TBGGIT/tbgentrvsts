@@ -136,7 +136,7 @@ def get_connection():
     )
 
 # Carpeta para almacenar videos
-app.config['UPLOAD_FOLDER'] = '/var/data/media/videos'
+app.config['UPLOAD_FOLDER'] = '/var/data/media'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Aumentamos el límite de subida a 50 MB
@@ -823,7 +823,7 @@ ENTREVISTA_CANDIDATO_TEMPLATE = (
 <head>
     <meta charset="UTF-8">
     <title>Entrevista Candidato</title>
-    {{ STYLES | safe }}
+    """ + STYLES + """
 </head>
 <body>
 <div class="container-wide">
