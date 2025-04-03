@@ -1208,6 +1208,53 @@ def registrar_candidato():
 def download_video(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+@app.route('/vacantes/<int:vacante_id>/candidatos')
+def lista_candidatos(vacante_id):
+    if 'usuario' not in session:
+        return redirect('/')
+    
+    conn = get_connection()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    # Obtener la vacante
+    cur.execute("SELECT * FROM vacantes WHERE id = %s", (vacante_id,))
+    vac_row = cur.fetchone()
+    if not vac_row:
+        cur.close()
+        conn.close()
+        return "La vacante no existe."
+
+    vacante = {
+        'id': vac_row['id'],
+        'clave': vac_row['clave'],
+        'empresa': vac_row['empresa'],
+        'sucursal': vac_row['sucursal'],
+        'puesto': vac_row['puesto'],
+        'fecha_publicacion': vac_row['fecha_publicacion'],
+        'pregunta1': vac_row['pregunta1'],
+        'pregunta2': vac_row['pregunta2'],
+        'pregunta3': vac_row['pregunta3']
+    }
+
+    # Obtener candidatos
+    cur.execute("SELECT * FROM candidatos WHERE id_vacante = %s ORDER BY id DESC", (vacante_id,))
+    rows = cur.fetchall()
+
+    candidatos = []
+    for row in rows:
+        candidatos.append({
+            'id': row['id'],
+            'nombre_completo': row['nombre_completo'],
+            'correo': row['correo'],
+            'celular': row['celular']
+        })
+
+    cur.close()
+    conn.close()
+
+    return render_template_string(LISTA_CANDIDATOS_TEMPLATE, vacante=vacante, candidatos=candidatos)
+
+
 # -----------------------------------------------------------------------------------
 # EJECUCIÓN
 # -----------------------------------------------------------------------------------
