@@ -5,9 +5,25 @@ import base64
 from datetime import datetime
 
 import math
+import shutil
+if shutil.which("ffmpeg") is None:
+    print("[ERROR] ffmpeg no está disponible. No podrás convertir audio.")
+import subprocess
 
 def transcribir_audio_por_segmentos(client, ruta_video, duracion_segmento=30):
-    with open(ruta_video, "rb") as audio_file:
+    # Convertimos a wav usando ffmpeg
+    ruta_audio_wav = ruta_video.replace(".webm", ".wav")
+    
+    try:
+        subprocess.run(
+            ["ffmpeg", "-i", ruta_video, "-ar", "16000", "-ac", "1", ruta_audio_wav],
+            check=True
+        )
+    except Exception as e:
+        print("[ERROR] Falló la conversión a WAV:", e)
+        return "Error al convertir video."
+
+    with open(ruta_audio_wav, "rb") as audio_file:
         transcripcion_completa = client.audio.transcriptions.create(
             model="whisper-1",
             file=audio_file,
@@ -18,8 +34,10 @@ def transcribir_audio_por_segmentos(client, ruta_video, duracion_segmento=30):
     palabras = texto_completo.split()
     total_palabras = len(palabras)
 
-    # Estimación del número de palabras por segmento de tiempo
-    palabras_por_segmento = max(1, math.ceil(total_palabras / (transcripcion_completa.get("duration", len(texto_completo.split())/2) / duracion_segmento)))
+    # Estimación de palabras por segmento
+    palabras_por_segmento = max(1, math.ceil(
+        total_palabras / (transcripcion_completa.get("duration", len(palabras)/2) / duracion_segmento)
+    ))
 
     segmentos = []
     for i in range(0, total_palabras, palabras_por_segmento):
@@ -27,6 +45,7 @@ def transcribir_audio_por_segmentos(client, ruta_video, duracion_segmento=30):
         segmentos.append(segmento_texto)
 
     return "\n\n".join(segmentos)
+
 
 def generar_informe_chatgpt(client, puesto, transcripcion):
     prompt = f"""
