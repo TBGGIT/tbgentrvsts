@@ -409,7 +409,7 @@ DASHBOARD_TEMPLATE = (
             <td>{{ vac['fecha_publicacion'] }}</td>
             <td><a href="/vacantes/{{ vac['id'] }}/candidatos" class="btn-ver">Ver</a></td>
             <td>
-                <button onclick="copyLinkFromButton('http://127.0.0.1:5000//?clave={{ vac['clave'] }}')">Copiar enlace</button>
+                <button onclick="copyLinkFromButton('https://for-video.onrender.com/?clave={{ vac['clave'] }}')">Copiar enlace</button>
             </td>
         </tr>
         {% endfor %}
@@ -754,7 +754,7 @@ VACANTE_CREADA_TEMPLATE = (
     <h2>{{ clave }}</h2>
     <p>Este es el enlace para compartir la vacante:</p>
     <div class="copy-link-container">
-        <input type="text" id="linkVacante" value="http://127.0.0.1:5000//?clave={{ clave }}" readonly>
+        <input type="text" id="linkVacante" value="https://for-video.onrender.com//?clave={{ clave }}" readonly>
         <button onclick="copyLink()">Copiar enlace</button>
     </div>
     <br>
