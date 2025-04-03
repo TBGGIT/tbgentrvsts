@@ -845,6 +845,9 @@ ENTREVISTA_CANDIDATO_TEMPLATE = (
         <source src="{{ candidato['ruta_video'] }}" type="video/webm">
         Tu navegador no soporta video.
     </video>
+    <br>
+    <a href="{{ candidato['ruta_video'] }}" download class="btn-ver">Descargar Video</a>
+
 
     <hr>
     <h2>Transcripción Segmentada (cada ~30 segundos)</h2>
