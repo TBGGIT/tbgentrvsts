@@ -63,6 +63,17 @@ import psycopg2
 import psycopg2.extras
 from cryptography.fernet import Fernet
 from openai import OpenAI
+
+# Cargar la clave descifrada
+try:
+    HARDCODED_API_KEY = load_api_key_from_file("api.txt")
+except Exception as e:
+    HARDCODED_API_KEY = ""
+    print("[ERROR]", e)
+
+# Inicializar cliente OpenAI con el nuevo SDK (versión >=1.0.0)
+client = OpenAI(api_key=HARDCODED_API_KEY)
+
 import math
 
 app = Flask(__name__)
