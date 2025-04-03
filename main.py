@@ -52,19 +52,49 @@ def transcribir_audio_por_segmentos(client, ruta_video, duracion_segmento=30):
 
 def generar_informe_chatgpt(client, puesto, transcripcion):
     prompt = f"""
-    Eres un experto en recursos humanos. Basado en la siguiente transcripción de la entrevista para la posición "{puesto}", crea un breve informe destacando claramente en dos secciones separadas las fortalezas y debilidades del candidato:
+Eres un experto en recursos humanos. A partir de la siguiente transcripción de entrevista laboral para la posición "{puesto}", realiza un informe estructurado siguiendo el formato indicado a continuación:
 
-    Transcripción:
-    {transcripcion}
+Transcripción:
+{transcripcion}
 
-    Formato:
-    Fortalezas:
-    - punto 1
-    - punto 2
+Formato del Informe:
 
-    Debilidades:
-    - punto 1
-    - punto 2
+Sección 1 - COMPETENCIAS TÉCNICAS
+
+Dominio Técnico:
+(Evalúa el conocimiento técnico específico requerido para el puesto, incluyendo certificaciones relevantes y experiencia demostrada).
+
+Nivel de Especialización:
+(Analiza y comenta el grado de especialización que presenta el candidato en los temas críticos necesarios para desempeñar eficazmente la posición).
+
+Sección 2 - SOFT SKILLS
+
+Comunicación:
+(Evalúa la capacidad del candidato para expresarse de forma clara, precisa y efectiva durante la entrevista).
+
+Trabajo en Equipo:
+(Describe la actitud percibida del candidato hacia el trabajo colaborativo, integración grupal y liderazgo interpersonal).
+
+Adaptabilidad y Flexibilidad:
+(Valora la habilidad del candidato para adaptarse a cambios o trabajar en entornos laborales dinámicos y desafiantes).
+
+Solución de Problemas:
+(Evalúa su capacidad para identificar problemas y proponer soluciones prácticas y efectivas durante la entrevista).
+
+Orientación a Resultados:
+(Observa el grado de enfoque hacia objetivos concretos, metas y logro de resultados específicos que demuestra el candidato).
+
+Sección 3 - EVALUACIÓN GENERAL
+
+PUNTOS FUERTES DEL CANDIDATO:
+(Resalta claramente los aspectos positivos más relevantes detectados durante la entrevista).
+
+ÁREAS DE OPORTUNIDAD:
+(Indica claramente aquellas áreas o aspectos donde el candidato podría mejorar o requerir desarrollo adicional).
+
+OBSERVACIONES ADICIONALES:
+(Incluye comentarios relevantes adicionales sobre comportamiento, actitud general, puntualidad, o cualquier otro aspecto que consideres importante destacar).
+Si algún punto no tienes información solo pon "-"
     """
 
     respuesta = client.chat.completions.create(
