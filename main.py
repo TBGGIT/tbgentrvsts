@@ -32,7 +32,7 @@ def get_connection():
     )
 
 # Carpeta para almacenar videos
-app.config['UPLOAD_FOLDER'] = 'videos'
+app.config['UPLOAD_FOLDER'] = '/var/data/media/videos'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Aumentamos el límite de subida a 50 MB
@@ -55,7 +55,7 @@ def generar_clave_vacante(id_numerico):
 STYLES = """
 <style>
 body {
-    background: url('https://expomatch.com.mx/wp-content/uploads/2025/03/u9969268949_creame_una_pagina_web_que_muestre_unas_bases_de_d_4f30c12d-8f6a-4913-aa47-1d927038ce10_0-1.png') no-repeat center center fixed;
+    background: url('https://forhumancapital.mx/wp-content/uploads/2025/04/8.png') no-repeat center center fixed;
     background-size: cover;
     color: #FFFFFF;
     font-family: 'Segoe UI', Arial, sans-serif;
