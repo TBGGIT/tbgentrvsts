@@ -4,11 +4,66 @@ import random
 import base64
 from datetime import datetime
 
+import math
+
+def transcribir_audio_por_segmentos(client, ruta_video, duracion_segmento=30):
+    with open(ruta_video, "rb") as audio_file:
+        transcripcion_completa = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file,
+            response_format="json"
+        )
+
+    texto_completo = transcripcion_completa['text']
+    palabras = texto_completo.split()
+    total_palabras = len(palabras)
+
+    # Estimación del número de palabras por segmento de tiempo
+    palabras_por_segmento = max(1, math.ceil(total_palabras / (transcripcion_completa.get("duration", len(texto_completo.split())/2) / duracion_segmento)))
+
+    segmentos = []
+    for i in range(0, total_palabras, palabras_por_segmento):
+        segmento_texto = " ".join(palabras[i:i + palabras_por_segmento])
+        segmentos.append(segmento_texto)
+
+    return "\n\n".join(segmentos)
+
+def generar_informe_chatgpt(client, puesto, transcripcion):
+    prompt = f"""
+    Eres un experto en recursos humanos. Basado en la siguiente transcripción de la entrevista para la posición "{puesto}", crea un breve informe destacando claramente en dos secciones separadas las fortalezas y debilidades del candidato:
+
+    Transcripción:
+    {transcripcion}
+
+    Formato:
+    Fortalezas:
+    - punto 1
+    - punto 2
+
+    Debilidades:
+    - punto 1
+    - punto 2
+    """
+
+    respuesta = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=500,
+        temperature=0.5
+    )
+
+    return respuesta.choices[0].message.content.strip()
+
+
+
 from flask import Flask, request, render_template_string, redirect, url_for, session, send_from_directory
 from werkzeug.utils import secure_filename
 
 import psycopg2
 import psycopg2.extras
+from cryptography.fernet import Fernet
+from openai import OpenAI
+import math
 
 app = Flask(__name__)
 app.secret_key = 'CLAVE_SECRETA_PARA_SESIONES'
@@ -48,6 +103,32 @@ def generar_clave_vacante(id_numerico):
     """
     random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=7))
     return str(id_numerico) + random_str
+
+# Clave usada para desencriptar
+ENCRYPTION_KEY = b'yMybaWCe4meeb3v4LWNI4Sxz7oS54Gn0Fo9yJovqVN0='
+
+def decrypt_api_key(encrypted_data: bytes) -> str:
+    f = Fernet(ENCRYPTION_KEY)
+    decrypted_bytes = f.decrypt(encrypted_data)
+    return decrypted_bytes.decode("utf-8")
+
+def load_api_key_from_file(file_path: str) -> str:
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"No se encontró el archivo: {file_path}")
+    with open(file_path, "rb") as f:
+        encrypted_data = f.read()
+    return decrypt_api_key(encrypted_data)
+
+# Cargar la clave descifrada
+try:
+    HARDCODED_API_KEY = load_api_key_from_file("api.txt")
+except Exception as e:
+    HARDCODED_API_KEY = ""
+    print("[ERROR]", e)
+
+# Inicializar cliente de OpenAI
+client = OpenAI(api_key=HARDCODED_API_KEY)
+
 
 # -----------------------------------------------------------------------------------
 # ESTILOS (UI/UX con fondo, negro, blanco, azul)
@@ -711,10 +792,10 @@ ENTREVISTA_CANDIDATO_TEMPLATE = (
 <head>
     <meta charset="UTF-8">
     <title>Entrevista Candidato</title>
-""" + STYLES + """
+    {{ STYLES | safe }}
 </head>
 <body>
-<div class="container">
+<div class="container-wide">
     <h1>Entrevista de {{ candidato['nombre_completo'] }}</h1>
     <p><strong>Correo:</strong> {{ candidato['correo'] }}</p>
     <p><strong>Celular:</strong> {{ candidato['celular'] }}</p>
@@ -724,18 +805,34 @@ ENTREVISTA_CANDIDATO_TEMPLATE = (
     <p><strong>Puesto:</strong> {{ vacante['puesto'] }}</p>
     <hr>
     <h2>Preguntas de la Vacante</h2>
-    <p><strong></strong> {{ vacante['pregunta1'] }}</p>
-    <p><strong></strong> {{ vacante['pregunta2'] }}</p>
-    <p><strong></strong> {{ vacante['pregunta3'] }}</p>
+    <p>{{ vacante['pregunta1'] }}</p>
+    <p>{{ vacante['pregunta2'] }}</p>
+    <p>{{ vacante['pregunta3'] }}</p>
     <hr>
+    <h2>Video de la Entrevista</h2>
     <video controls class="video-full">
         <source src="{{ candidato['ruta_video'] }}" type="video/webm">
-        Tu navegador no soporta la reproducción de video.
-    </video><br><br>
+        Tu navegador no soporta video.
+    </video>
+
+    <hr>
+    <h2>Transcripción Segmentada (cada ~30 segundos)</h2>
+    <div style="background-color: #2A2A2A; color: #FFFFFF; padding: 15px; border-radius: 8px; white-space: pre-wrap;">
+        {{ candidato['transcripcion'] }}
+    </div>
+
+    <hr>
+    <h2>Informe del Candidato (Generado por ChatGPT)</h2>
+    <div style="background-color: #2A2A2A; color: #FFFFFF; padding: 15px; border-radius: 8px; white-space: pre-wrap;">
+        {{ candidato['informe'] }}
+    </div>
+
+    <br>
     <a href="/vacantes/{{ vacante_id }}/candidatos">Volver a la lista</a>
 </div>
 </body>
 </html>
+
 """
 )
 
@@ -920,18 +1017,37 @@ def crear_vacante():
     else:
         return render_template_string(CREAR_VACANTE_TEMPLATE)
 
-@app.route('/vacantes/<int:vacante_id>/candidatos')
-def lista_candidatos(vacante_id):
+@app.route('/vacantes/<int:vacante_id>/candidatos/<int:candidato_id>')
+def ver_entrevista_candidato(vacante_id, candidato_id):
     if 'usuario' not in session:
         return redirect('/')
     conn = get_connection()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
+    cur.execute("SELECT * FROM candidatos WHERE id = %s", (candidato_id,))
+    cand_row = cur.fetchone()
+    if not cand_row:
+        cur.close()
+        conn.close()
+        return "El candidato no existe."
+
+    candidato = {
+        'id': cand_row['id'],
+        'nombre_completo': cand_row['nombre_completo'],
+        'correo': cand_row['correo'],
+        'celular': cand_row['celular'],
+        'ruta_video': cand_row['ruta_video'],
+        'transcripcion': cand_row['transcripcion'], # Añadido
+        'informe': cand_row['informe']              # Añadido
+    }
+
     cur.execute("SELECT * FROM vacantes WHERE id = %s", (vacante_id,))
     vac_row = cur.fetchone()
     if not vac_row:
         cur.close()
         conn.close()
         return "La vacante no existe."
+
     vacante = {
         'id': vac_row['id'],
         'clave': vac_row['clave'],
@@ -943,21 +1059,16 @@ def lista_candidatos(vacante_id):
         'pregunta2': vac_row['pregunta2'],
         'pregunta3': vac_row['pregunta3']
     }
-    cur.execute("SELECT * FROM candidatos WHERE id_vacante = %s ORDER BY id ASC", (vacante_id,))
-    cand_rows = cur.fetchall()
-    candidatos = []
-    for c in cand_rows:
-        candidatos.append({
-            'id': c['id'],
-            'nombre_completo': c['nombre_completo'],
-            'correo': c['correo'],
-            'celular': c['celular'],
-            'nombre_video': c['nombre_video'],
-            'ruta_video': c['ruta_video']
-        })
+
     cur.close()
     conn.close()
-    return render_template_string(LISTA_CANDIDATOS_TEMPLATE, vacante=vacante, candidatos=candidatos)
+
+    return render_template_string(
+        ENTREVISTA_CANDIDATO_TEMPLATE,
+        candidato=candidato,
+        vacante_id=vacante_id,
+        vacante=vacante
+    )
 
 @app.route('/vacantes/<int:vacante_id>/candidatos/<int:candidato_id>')
 def ver_entrevista_candidato(vacante_id, candidato_id):
@@ -1043,36 +1154,61 @@ def registrar_candidato():
     correo = request.form.get('correo')
     celular = request.form.get('celular')
     file_video = request.files.get('video')
+
     if not file_video:
         return f"No se recibió ningún video. <br><a href='/entrevista/{id_vacante}'>Intentar de nuevo</a>"
+
     file_video.seek(0, os.SEEK_END)
     file_size = file_video.tell()
     file_video.seek(0, 0)
-    if file_size > 30 * 1024 * 1024:
-        return "El video excede el tamaño máximo de 30MB. <br><a href='/'>Volver</a>"
+
+    if file_size > 50 * 1024 * 1024:
+        return "El video excede el tamaño máximo de 50MB. <br><a href='/'>Volver</a>"
+
     conn = get_connection()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    cur.execute("SELECT clave FROM vacantes WHERE id = %s", (id_vacante,))
+
+    cur.execute("SELECT clave, puesto FROM vacantes WHERE id = %s", (id_vacante,))
     row = cur.fetchone()
+
     if not row:
         cur.close()
         conn.close()
         return "Vacante inexistente."
+
     clave_vacante = row['clave']
+    puesto_vacante = row['puesto']
+
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     nombre_video = f"{timestamp}_{clave_vacante}.webm"
     filename = secure_filename(nombre_video)
     full_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file_video.save(full_path)
+
     ruta_guardada = f"/{app.config['UPLOAD_FOLDER']}/{filename}"
+
+    # Verifica cliente OpenAI
+    if client is None:
+        return "Error: Cliente OpenAI no inicializado."
+
+    # Generar transcripción segmentada
+    transcripcion_segmentada = transcribir_audio_por_segmentos(client, full_path)
+
+    # Generar informe usando ChatGPT
+    informe_candidato = generar_informe_chatgpt(client, puesto_vacante, transcripcion_segmentada)
+
+    # Guardar candidato con transcripción e informe en la DB
     cur.execute("""
         INSERT INTO candidatos(nombre_completo, correo, celular, id_vacante,
-                               nombre_video, ruta_video)
-        VALUES (%s, %s, %s, %s, %s, %s)
-    """, (nombre_completo, correo, celular, id_vacante, nombre_video, ruta_guardada))
+                               nombre_video, ruta_video, transcripcion, informe)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """, (nombre_completo, correo, celular, id_vacante, nombre_video, ruta_guardada,
+          transcripcion_segmentada, informe_candidato))
+
     conn.commit()
     cur.close()
     conn.close()
+
     return "¡Formulario y video enviados con éxito!"
 
 @app.route('/videos/<path:filename>')
