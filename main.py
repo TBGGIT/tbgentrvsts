@@ -30,13 +30,15 @@ def transcribir_audio_por_segmentos(client, ruta_video, duracion_segmento=30):
             response_format="json"
         )
 
-    texto_completo = transcripcion_completa['text']
+    texto_completo = transcripcion_completa.text
     palabras = texto_completo.split()
     total_palabras = len(palabras)
 
-    # Estimación de palabras por segmento
+    # Estimación de palabras por segmento (usando getattr por si no trae duración)
+    duration_estimada = getattr(transcripcion_completa, "duration", len(palabras)/2)
+
     palabras_por_segmento = max(1, math.ceil(
-        total_palabras / (transcripcion_completa.get("duration", len(palabras)/2) / duracion_segmento)
+        total_palabras / (duration_estimada / duracion_segmento)
     ))
 
     segmentos = []
@@ -45,6 +47,7 @@ def transcribir_audio_por_segmentos(client, ruta_video, duracion_segmento=30):
         segmentos.append(segmento_texto)
 
     return "\n\n".join(segmentos)
+
 
 
 def generar_informe_chatgpt(client, puesto, transcripcion):
