@@ -7,4 +7,7 @@ werkzeug==2.2.3
 openai>=1.0.0
 cryptography==42.0.5
 python-dotenv
-
+deepface==0.40
+opencv-python-headless
+tensorflow
+keras

@@ -3,6 +3,9 @@ import string
 import random
 import base64
 from datetime import datetime
+from deepface import DeepFace
+import cv2
+
 
 import math
 import shutil
@@ -50,62 +53,85 @@ def transcribir_audio_por_segmentos(client, ruta_video, duracion_segmento=30):
 
 
 
-def generar_informe_chatgpt(client, puesto, transcripcion):
-    prompt = f"""
-Eres un experto en recursos humanos. A partir de la siguiente transcripción de entrevista laboral para la posición "{puesto}", realiza un informe estructurado siguiendo el formato indicado a continuación:
+def generar_informe_chatgpt(client, puesto, transcripcion, emocion_dominante="", emociones_json=None):
+        emociones_formateadas = ""
+        if emociones_json:
+            emociones_formateadas = "\n".join([f"- {k.capitalize()}: {v:.2f}%" for k, v in emociones_json.items()])
+        else:
+            emociones_formateadas = "No se pudieron detectar emociones."
 
-Transcripción:
-"{transcripcion}"
+        prompt = f"""
+    Eres un experto en recursos humanos. A partir de la siguiente transcripción de entrevista laboral para la posición "{puesto}" y el análisis facial de emociones, realiza un informe estructurado como se indica:
 
+    Transcripción:
+    "{transcripcion}"
 
-Formato del Informe:
+    Análisis de emociones faciales durante el video (estimado por IA):
+    Emoción dominante: {emocion_dominante or "-"}
+    Distribución de emociones:
+    {emociones_formateadas}
 
-Sección 1 - COMPETENCIAS TÉCNICAS
+    Formato del Informe:
 
-Dominio Técnico:
-(Evalúa el conocimiento técnico específico requerido para el puesto, incluyendo certificaciones relevantes y experiencia demostrada). (Si la transcripción tiene datos insuficientes pon "-")
+    Sección 1 - COMPETENCIAS TÉCNICAS
+    Dominio Técnico: (Evalúa el conocimiento técnico específico requerido para el puesto). Si no hay datos suficientes, escribe "-".
+    Nivel de Especialización: (Comenta el grado de especialización). Si no hay datos suficientes, escribe "-".
 
-Nivel de Especialización:
-(Analiza y comenta el grado de especialización que presenta el candidato en los temas críticos necesarios para desempeñar eficazmente la posición).(Si la transcripción tiene datos insuficientes pon "-")
+    Sección 2 - SOFT SKILLS
+    Comunicación: (Evalúa la capacidad para expresarse). Si no hay datos suficientes, escribe "-".
+    Trabajo en Equipo: (Describe la actitud hacia lo grupal). Si no hay datos suficientes, escribe "-".
+    Adaptabilidad y Flexibilidad: (Capacidad para adaptarse a entornos). Si no hay datos suficientes, escribe "-".
+    Solución de Problemas: (Capacidad para identificar y resolver problemas). Si no hay datos suficientes, escribe "-".
+    Orientación a Resultados: (Grado de enfoque en metas). Si no hay datos suficientes, escribe "-".
 
-Sección 2 - SOFT SKILLS
+    Sección 3 - EVALUACIÓN GENERAL
+    PUNTOS FUERTES DEL CANDIDATO: (Aspectos positivos clave).
+    ÁREAS DE OPORTUNIDAD: (Aspectos por mejorar).
+    OBSERVACIONES ADICIONALES: (Comentarios sobre actitud, puntualidad u otros aspectos observados).
+    
+    Informe de emociones detectadas con visión por computadora:
+    - Emoción dominante: {emocion_dominante}
+    - Distribución emocional: {emociones_json}
 
-Comunicación:
-(Evalúa la capacidad del candidato para expresarse de forma clara, precisa y efectiva durante la entrevista).(Si la transcripción tiene datos insuficientes pon "-")
-
-Trabajo en Equipo:
-(Describe la actitud percibida del candidato hacia el trabajo colaborativo, integración grupal y liderazgo interpersonal).(Si la transcripción tiene datos insuficientes pon "-")
-
-Adaptabilidad y Flexibilidad:
-(Valora la habilidad del candidato para adaptarse a cambios o trabajar en entornos laborales dinámicos y desafiantes).(Si la transcripción tiene datos insuficientes pon "-")
-
-Solución de Problemas:
-(Evalúa su capacidad para identificar problemas y proponer soluciones prácticas y efectivas durante la entrevista).(Si la transcripción tiene datos insuficientes pon "-")
-
-Orientación a Resultados:
-(Observa el grado de enfoque hacia objetivos concretos, metas y logro de resultados específicos que demuestra el candidato).(Si la transcripción tiene datos insuficientes pon "-")
-
-Sección 3 - EVALUACIÓN GENERAL
-
-PUNTOS FUERTES DEL CANDIDATO:
-(Resalta claramente los aspectos positivos más relevantes detectados durante la entrevista).(Si la transcripción tiene datos insuficientes pon "-")
-
-ÁREAS DE OPORTUNIDAD:
-(Indica claramente aquellas áreas o aspectos donde el candidato podría mejorar o requerir desarrollo adicional).(Si la transcripción tiene datos insuficientes pon "-")
-
-OBSERVACIONES ADICIONALES:
-(Incluye comentarios relevantes adicionales sobre comportamiento, actitud general, puntualidad, o cualquier otro aspecto que consideres importante destacar).(Si la transcripción tiene datos insuficientes pon "-")
-Si algún punto no tienes información solo pon "-"
     """
+        respuesta = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=700,
+            temperature=0.5
+        )
 
-    respuesta = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=500,
-        temperature=0.5
-    )
+        return respuesta.choices[0].message.content.strip()
 
-    return respuesta.choices[0].message.content.strip()
+def detectar_emociones_en_video(ruta_video):
+    try:
+        cap = cv2.VideoCapture(ruta_video)
+        emociones_contadas = {}
+
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            try:
+                analisis = DeepFace.analyze(frame, actions=["emotion"], enforce_detection=False)
+                emocion = analisis[0]['dominant_emotion']
+                emociones_contadas[emocion] = emociones_contadas.get(emocion, 0) + 1
+            except Exception:
+                continue  # omitir frames que fallen
+
+        cap.release()
+
+        total = sum(emociones_contadas.values())
+        if total == 0:
+            return "No detectado", {}
+
+        emociones_porcentajes = {emo: (count / total) * 100 for emo, count in emociones_contadas.items()}
+        emocion_dominante = max(emociones_porcentajes, key=emociones_porcentajes.get)
+        return emocion_dominante, emociones_porcentajes
+
+    except Exception as e:
+        print("Error al analizar emociones:", e)
+        return "Error", {}
 
 
 
@@ -421,6 +447,11 @@ a:hover {
     box-shadow: 0 4px 12px rgba(0,0,0,0.4);
     margin-top: 20px;
 }
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
 </style>
 """
 
@@ -703,6 +734,14 @@ FORM_CANDIDATO_TEMPLATE = (
 </head>
 <body>
 <div class="container">
+    <div id="loadingOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.7); z-index:9999; text-align:center; padding-top:200px;">
+        <div style="color:white; font-size:24px;">Procesando video... por favor espera</div>
+        <div class="spinner" style="margin:20px auto; width:50px; height:50px; border:6px solid #ccc; border-top-color:#1E90FF; border-radius:50%; animation:spin 1s linear infinite;"></div>
+    </div>
+    <div id="successMessage" style="display:none; color: #00FF00; text-align:center; font-size: 18px; margin-top: 20px;">
+        ✅ ¡Video enviado con éxito! Serás redirigido en breve...
+    </div>
+
     <h1>FORMULARIO DE CANDIDATO</h1>
     <h1>{{ vacante['empresa'] }} - {{ vacante['puesto'] }}</h1>
     <form id="candidateForm">
@@ -816,11 +855,13 @@ function stopRecording() {
 }
 document.getElementById('candidateForm').addEventListener('submit', async function(e) {
     e.preventDefault();
+
     const formData = new FormData();
     formData.append('id_vacante', document.querySelector('input[name="id_vacante"]').value);
     formData.append('nombre_completo', document.querySelector('input[name="nombre_completo"]').value);
     formData.append('correo', document.querySelector('input[name="correo"]').value);
     formData.append('celular', document.querySelector('input[name="celular"]').value);
+
     const fileInput = document.getElementById('video_upload');
     if (fileInput.files.length > 0) {
         formData.append('video', fileInput.files[0]);
@@ -830,18 +871,31 @@ document.getElementById('candidateForm').addEventListener('submit', async functi
         alert("Por favor, sube un video o graba uno antes de enviar.");
         return;
     }
+
+    document.getElementById("loadingOverlay").style.display = "block";
+
     try {
         const response = await fetch('/registrar_candidato', {
             method: 'POST',
             body: formData
         });
+
         const result = await response.text();
-        alert(result);
-        window.location.href = '/';
-    } catch(error) {
+        console.log(result);
+
+        document.getElementById("loadingOverlay").style.display = "none";
+        document.getElementById("successMessage").style.display = "block";
+
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 3000); // redirigir en 3 segundos
+
+    } catch (error) {
+        document.getElementById("loadingOverlay").style.display = "none";
         alert("Error al enviar formulario: " + error);
     }
 });
+
 window.addEventListener('load', populateCameraList);
 </script>
 </body>
@@ -1247,14 +1301,26 @@ def registrar_candidato():
 
 
     # Verifica cliente OpenAI
+    # Detectar emociones con DeepFace
+    emocion_dominante, emociones = detectar_emociones_en_video(final_path)
+
+    # Verifica cliente OpenAI
     if client is None:
         return "Error: Cliente OpenAI no inicializado."
 
     # Generar transcripción segmentada
     transcripcion_segmentada = transcribir_audio_por_segmentos(client, final_path)
 
+
     # Generar informe usando ChatGPT
-    informe_candidato = generar_informe_chatgpt(client, puesto_vacante, transcripcion_segmentada)
+    informe_candidato = generar_informe_chatgpt(
+        client,
+        puesto_vacante,
+        transcripcion_segmentada,
+        emocion_dominante=emocion_dominante,
+        emociones_json=emociones
+    )
+
 
     # Guardar candidato con transcripción e informe en la DB
     cur.execute("""
