@@ -719,6 +719,7 @@ FORM_CANDIDATO_TEMPLATE = (
         <div class="file-upload">
             <label for="video_upload">Subir video:</label>
             <input type="file" id="video_upload" name="video_upload" accept="video/*">
+            
         </div>
         <div class="video-section">
             <h3>O Graba tu video (5 min máx, ~720p, 20fps)</h3>
