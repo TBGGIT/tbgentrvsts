@@ -7,5 +7,5 @@ openai>=1.0.0
 cryptography==42.0.5
 python-dotenv
 opencv-python-headless==4.8.1.78
+tensorflow==2.15.0
 deepface==0.0.79
-tensorflow==2.16.1
