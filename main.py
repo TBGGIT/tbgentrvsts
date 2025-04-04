@@ -55,45 +55,46 @@ def generar_informe_chatgpt(client, puesto, transcripcion):
 Eres un experto en recursos humanos. A partir de la siguiente transcripción de entrevista laboral para la posición "{puesto}", realiza un informe estructurado siguiendo el formato indicado a continuación:
 
 Transcripción:
-{transcripcion}
+"{transcripcion}"
+
 
 Formato del Informe:
 
 Sección 1 - COMPETENCIAS TÉCNICAS
 
 Dominio Técnico:
-(Evalúa el conocimiento técnico específico requerido para el puesto, incluyendo certificaciones relevantes y experiencia demostrada).
+(Evalúa el conocimiento técnico específico requerido para el puesto, incluyendo certificaciones relevantes y experiencia demostrada). (Si la transcripción tiene datos insuficientes pon "-")
 
 Nivel de Especialización:
-(Analiza y comenta el grado de especialización que presenta el candidato en los temas críticos necesarios para desempeñar eficazmente la posición).
+(Analiza y comenta el grado de especialización que presenta el candidato en los temas críticos necesarios para desempeñar eficazmente la posición).(Si la transcripción tiene datos insuficientes pon "-")
 
 Sección 2 - SOFT SKILLS
 
 Comunicación:
-(Evalúa la capacidad del candidato para expresarse de forma clara, precisa y efectiva durante la entrevista).
+(Evalúa la capacidad del candidato para expresarse de forma clara, precisa y efectiva durante la entrevista).(Si la transcripción tiene datos insuficientes pon "-")
 
 Trabajo en Equipo:
-(Describe la actitud percibida del candidato hacia el trabajo colaborativo, integración grupal y liderazgo interpersonal).
+(Describe la actitud percibida del candidato hacia el trabajo colaborativo, integración grupal y liderazgo interpersonal).(Si la transcripción tiene datos insuficientes pon "-")
 
 Adaptabilidad y Flexibilidad:
-(Valora la habilidad del candidato para adaptarse a cambios o trabajar en entornos laborales dinámicos y desafiantes).
+(Valora la habilidad del candidato para adaptarse a cambios o trabajar en entornos laborales dinámicos y desafiantes).(Si la transcripción tiene datos insuficientes pon "-")
 
 Solución de Problemas:
-(Evalúa su capacidad para identificar problemas y proponer soluciones prácticas y efectivas durante la entrevista).
+(Evalúa su capacidad para identificar problemas y proponer soluciones prácticas y efectivas durante la entrevista).(Si la transcripción tiene datos insuficientes pon "-")
 
 Orientación a Resultados:
-(Observa el grado de enfoque hacia objetivos concretos, metas y logro de resultados específicos que demuestra el candidato).
+(Observa el grado de enfoque hacia objetivos concretos, metas y logro de resultados específicos que demuestra el candidato).(Si la transcripción tiene datos insuficientes pon "-")
 
 Sección 3 - EVALUACIÓN GENERAL
 
 PUNTOS FUERTES DEL CANDIDATO:
-(Resalta claramente los aspectos positivos más relevantes detectados durante la entrevista).
+(Resalta claramente los aspectos positivos más relevantes detectados durante la entrevista).(Si la transcripción tiene datos insuficientes pon "-")
 
 ÁREAS DE OPORTUNIDAD:
-(Indica claramente aquellas áreas o aspectos donde el candidato podría mejorar o requerir desarrollo adicional).
+(Indica claramente aquellas áreas o aspectos donde el candidato podría mejorar o requerir desarrollo adicional).(Si la transcripción tiene datos insuficientes pon "-")
 
 OBSERVACIONES ADICIONALES:
-(Incluye comentarios relevantes adicionales sobre comportamiento, actitud general, puntualidad, o cualquier otro aspecto que consideres importante destacar).
+(Incluye comentarios relevantes adicionales sobre comportamiento, actitud general, puntualidad, o cualquier otro aspecto que consideres importante destacar).(Si la transcripción tiene datos insuficientes pon "-")
 Si algún punto no tienes información solo pon "-"
     """
 
@@ -1180,6 +1181,7 @@ def registrar_candidato():
     print("Form keys:", list(request.form.keys()))
     print("File keys:", list(request.files.keys()))
     print("File 'video':", request.files.get('video'))
+
     id_vacante = request.form.get('id_vacante')
     nombre_completo = request.form.get('nombre_completo')
     correo = request.form.get('correo')
@@ -1211,19 +1213,43 @@ def registrar_candidato():
     puesto_vacante = row['puesto']
 
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    nombre_video = f"{timestamp}_{clave_vacante}.webm"
-    filename = secure_filename(nombre_video)
-    full_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    file_video.save(full_path)
+    original_ext = os.path.splitext(file_video.filename)[1].lower()
+    original_filename = secure_filename(f"{timestamp}_{clave_vacante}{original_ext}")
+    original_path = os.path.join(app.config['UPLOAD_FOLDER'], original_filename)
+    file_video.save(original_path)
 
-    ruta_guardada = f"/{app.config['UPLOAD_FOLDER']}/{filename}"
+    # Convertir a WebM si no lo es ya
+    if not original_filename.endswith('.webm'):
+        webm_filename = f"{timestamp}_{clave_vacante}.webm"
+        webm_path = os.path.join(app.config['UPLOAD_FOLDER'], webm_filename)
+        try:
+            subprocess.run([
+                "ffmpeg", "-i", original_path,
+                "-c:v", "libvpx-vp9", "-b:v", "1M",
+                "-c:a", "libopus",
+                "-vf", "scale=720:-1",
+                webm_path
+            ], check=True)
+            os.remove(original_path)  # eliminar original
+            final_path = webm_path
+            nombre_video = webm_filename
+            print("✅ Video convertido a WebM con éxito.")
+        except Exception as e:
+            print("⚠️ Error al convertir a WebM:", e)
+            final_path = original_path
+            nombre_video = original_filename
+    else:
+        final_path = original_path
+        nombre_video = original_filename
+
+    ruta_guardada = f"/{app.config['UPLOAD_FOLDER']}/{nombre_video}"
 
     # Verifica cliente OpenAI
     if client is None:
         return "Error: Cliente OpenAI no inicializado."
 
     # Generar transcripción segmentada
-    transcripcion_segmentada = transcribir_audio_por_segmentos(client, full_path)
+    transcripcion_segmentada = transcribir_audio_por_segmentos(client, final_path)
 
     # Generar informe usando ChatGPT
     informe_candidato = generar_informe_chatgpt(client, puesto_vacante, transcripcion_segmentada)
@@ -1241,6 +1267,7 @@ def registrar_candidato():
     conn.close()
 
     return "¡Formulario y video enviados con éxito!"
+
 
 @app.route('/videos/<path:filename>')
 def download_video(filename):
