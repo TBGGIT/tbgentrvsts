@@ -1301,8 +1301,10 @@ def registrar_candidato():
 
 
     # Verifica cliente OpenAI
-    # Detectar emociones con DeepFace
-    emocion_dominante, emociones = detectar_emociones_en_video(final_path)
+    # Detectar emociones con DeepFace (DESACTIVADO TEMPORALMENTE)
+    # emocion_dominante, emociones = detectar_emociones_en_video(final_path)
+    emocion_dominante = ""
+    emociones = {}
 
     # Verifica cliente OpenAI
     if client is None:
