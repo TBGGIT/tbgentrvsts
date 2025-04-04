@@ -3,8 +3,9 @@ import string
 import random
 import base64
 from datetime import datetime
-from deepface import DeepFace
-import cv2
+# from deepface import DeepFace
+# import cv2
+
 
 
 import math
@@ -103,35 +104,7 @@ def generar_informe_chatgpt(client, puesto, transcripcion, emocion_dominante="",
 
         return respuesta.choices[0].message.content.strip()
 
-def detectar_emociones_en_video(ruta_video):
-    try:
-        cap = cv2.VideoCapture(ruta_video)
-        emociones_contadas = {}
 
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            try:
-                analisis = DeepFace.analyze(frame, actions=["emotion"], enforce_detection=False)
-                emocion = analisis[0]['dominant_emotion']
-                emociones_contadas[emocion] = emociones_contadas.get(emocion, 0) + 1
-            except Exception:
-                continue  # omitir frames que fallen
-
-        cap.release()
-
-        total = sum(emociones_contadas.values())
-        if total == 0:
-            return "No detectado", {}
-
-        emociones_porcentajes = {emo: (count / total) * 100 for emo, count in emociones_contadas.items()}
-        emocion_dominante = max(emociones_porcentajes, key=emociones_porcentajes.get)
-        return emocion_dominante, emociones_porcentajes
-
-    except Exception as e:
-        print("Error al analizar emociones:", e)
-        return "Error", {}
 
 
 
