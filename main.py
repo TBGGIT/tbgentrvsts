@@ -1242,7 +1242,9 @@ def registrar_candidato():
         final_path = original_path
         nombre_video = original_filename
 
-    ruta_guardada = f"/{app.config['UPLOAD_FOLDER']}/{nombre_video}"
+    #ruta_guardada = f"/{app.config['UPLOAD_FOLDER']}/{nombre_video}"
+    ruta_guardada = f"/videos/{nombre_video}"
+
 
     # Verifica cliente OpenAI
     if client is None:
