@@ -1176,6 +1176,10 @@ def form_candidato(vacante_id):
 
 @app.route('/registrar_candidato', methods=['POST'])
 def registrar_candidato():
+    print(">>> FORMULARIO RECIBIDO")
+    print("Form keys:", list(request.form.keys()))
+    print("File keys:", list(request.files.keys()))
+    print("File 'video':", request.files.get('video'))
     id_vacante = request.form.get('id_vacante')
     nombre_completo = request.form.get('nombre_completo')
     correo = request.form.get('correo')
